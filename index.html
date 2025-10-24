@@ -1,0 +1,212 @@
+<!doctype html>
+<html lang="lo">
+
+<head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width,initial-scale=1" />
+    <title>ລາຍຊື່ແຂວງ (Provinces)</title>
+
+    <!-- Tailwind Play CDN (quick dev) -->
+    <script src="https://cdn.tailwindcss.com"></script>
+
+    <style>
+        /* small visual tweak for loading animation */
+        .pulse-dot {
+            width: 0.75rem;
+            height: 0.75rem;
+            border-radius: 9999px;
+            animation: pulse 1s infinite;
+            background: rgba(59, 130, 246, 1);
+        }
+
+        @keyframes pulse {
+            0% {
+                transform: scale(1);
+                opacity: 1;
+            }
+
+            50% {
+                transform: scale(1.5);
+                opacity: 0.5;
+            }
+
+            100% {
+                transform: scale(1);
+                opacity: 1;
+            }
+        }
+    </style>
+</head>
+
+<body class="bg-gray-50 min-h-screen text-gray-800">
+    <main class="max-w-4xl mx-auto p-6">
+        <header class="mb-6">
+            <h1 class="text-2xl font-semibold">ລາຍຊື່ແຂວງ (Provinces)</h1>
+            <p class="text-sm text-gray-600 mt-1">ດຶງຂໍ້ມູນຈາກ API ແລະສະແດງຜົນດ້ວຍ TailwindCSS</p>
+        </header>
+
+        <section class="bg-white shadow-sm rounded-lg p-4 mb-6">
+            <div class="flex flex-col sm:flex-row sm:items-center sm:gap-4 gap-3">
+                <div class="flex-1">
+                    <input id="searchInput" type="search" placeholder="ຄົນຄົ້ນ: ຊື່ແຂວງ..."
+                        class="w-full border rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-indigo-300" />
+                </div>
+
+                <div class="flex gap-2">
+                    <button id="refreshBtn"
+                        class="px-4 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700">Refresh</button>
+                    <button id="clearBtn" class="px-4 py-2 border rounded-lg hover:bg-gray-50">Clear</button>
+                </div>
+            </div>
+
+            <div class="mt-3 text-sm text-gray-600 flex items-center gap-2">
+                <div id="status" class="inline-flex items-center gap-2">
+                    <!-- status injected by JS -->
+                </div>
+            </div>
+        </section>
+
+        <section>
+            <div class="overflow-x-auto bg-white rounded-lg shadow">
+                <table class="min-w-full divide-y">
+                    <thead class="bg-gray-100">
+                        <tr>
+                            <th class="px-4 py-2 text-left text-sm font-medium text-gray-600">ID</th>
+                            <th class="px-4 py-2 text-left text-sm font-medium text-gray-600">ຊື່ແຂວງ</th>
+                            <th class="px-4 py-2 text-left text-sm font-medium text-gray-600">createdAt</th>
+                            <th class="px-4 py-2 text-left text-sm font-medium text-gray-600">updatedAt</th>
+                        </tr>
+                    </thead>
+                    <tbody id="tableBody" class="divide-y">
+                        <!-- rows injected by JS -->
+                    </tbody>
+                </table>
+            </div>
+        </section>
+
+        <footer class="mt-4 text-sm text-gray-500">
+            <div>API: <code
+                    class="bg-gray-100 px-2 py-0.5 rounded">https://hopefully-comfort-warrior-passenger.trycloudflare.com/api/provinces</code>
+            </div>
+        </footer>
+    </main>
+
+    <script>
+        const API_URL = 'https://sally-jean-cluster-sufficient.trycloudflare.com/api/provinces';
+
+        // DOM
+        const tableBody = document.getElementById('tableBody');
+        const statusEl = document.getElementById('status');
+        const searchInput = document.getElementById('searchInput');
+        const refreshBtn = document.getElementById('refreshBtn');
+        const clearBtn = document.getElementById('clearBtn');
+
+        let provinces = []; // cached list
+
+        function setStatusLoading(text = 'ກຳລັງໂຫຼດ...') {
+            statusEl.innerHTML = '<span class="pulse-dot" aria-hidden="true"></span><span>' + text + '</span>';
+        }
+        function setStatusText(text) {
+            statusEl.textContent = text;
+        }
+        function setStatusError(text) {
+            statusEl.innerHTML = '<span class="text-red-600 font-medium">Error:</span> ' + text;
+        }
+
+        function formatDateIso(iso) {
+            try {
+                const d = new Date(iso);
+                // use user's locale if available; fallback to 'lo-LA' if supported
+                const locale = (navigator.languages && navigator.languages[0]) || navigator.language || 'lo-LA';
+                return d.toLocaleString(locale, { year: 'numeric', month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' });
+            } catch (e) {
+                return iso;
+            }
+        }
+
+        function renderTable(list) {
+            if (!list || list.length === 0) {
+                tableBody.innerHTML = '<tr><td colspan="4" class="px-4 py-6 text-center text-sm text-gray-500">ບໍ່ພົບຂໍ້ມູນ</td></tr>';
+                return;
+            }
+
+            tableBody.innerHTML = list.map(item => {
+                return `
+          <tr class="hover:bg-gray-50">
+            <td class="px-4 py-3 text-sm">${escapeHtml(item.provinceID)}</td>
+            <td class="px-4 py-3 text-sm">${escapeHtml(item.provinceName)}</td>
+            <td class="px-4 py-3 text-sm">${escapeHtml(formatDateIso(item.createdAt))}</td>
+            <td class="px-4 py-3 text-sm">${escapeHtml(formatDateIso(item.updatedAt))}</td>
+          </tr>
+        `;
+            }).join('');
+        }
+
+        function escapeHtml(str) {
+            if (str === null || str === undefined) return '';
+            return String(str)
+                .replaceAll('&', '&amp;')
+                .replaceAll('<', '&lt;')
+                .replaceAll('>', '&gt;')
+                .replaceAll('"', '&quot;')
+                .replaceAll("'", '&#39;');
+        }
+
+        async function fetchProvinces() {
+            setStatusLoading();
+            try {
+                const res = await fetch(API_URL, { method: 'GET' });
+                if (!res.ok) {
+                    throw new Error(`HTTP ${res.status} ${res.statusText}`);
+                }
+                const data = await res.json();
+                // optional: validate basic structure
+                if (!Array.isArray(data)) {
+                    throw new Error('API response is not an array');
+                }
+                provinces = data.slice(); // cache
+                setStatusText(`ໂຫຼດສຳເລັດ — ${provinces.length} ແຂວງ`);
+                applyFilterAndRender();
+            } catch (err) {
+                console.error(err);
+                setStatusError(err.message || 'ກິດຈະກໍາຜິດພາດເກີດຂຶ້ນ');
+                tableBody.innerHTML = '<tr><td colspan="4" class="px-4 py-6 text-center text-sm text-red-600">ເກີດຂໍ້ຜິດພາດໃນການດຶງຂໍ້ມູນ</td></tr>';
+            }
+        }
+
+        function applyFilterAndRender() {
+            const q = (searchInput.value || '').trim().toLowerCase();
+            let filtered = provinces;
+            if (q.length > 0) {
+                filtered = provinces.filter(p => {
+                    return String(p.provinceName || '').toLowerCase().includes(q) || String(p.provinceID).includes(q);
+                });
+            }
+            // sort by provinceID asc
+            filtered.sort((a, b) => (a.provinceID || 0) - (b.provinceID || 0));
+            renderTable(filtered);
+        }
+
+        // events
+        searchInput.addEventListener('input', () => {
+            applyFilterAndRender();
+        });
+
+        refreshBtn.addEventListener('click', async () => {
+            await fetchProvinces();
+        });
+
+        clearBtn.addEventListener('click', () => {
+            searchInput.value = '';
+            applyFilterAndRender();
+            setStatusText(`ສະຫນັບສະຫນຸນ ${provinces.length} ແຂວງ (cache)`);
+        });
+
+        // initial load
+        (async () => {
+            await fetchProvinces();
+        })();
+    </script>
+</body>
+
+</html>
